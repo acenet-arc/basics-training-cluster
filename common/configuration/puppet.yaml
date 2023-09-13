@@ -1,0 +1,168 @@
+#cloud-config
+users:
+  - name: ${sudoer_username}
+    groups: adm, wheel, systemd-journal
+    homedir: /${sudoer_username}
+    selinux_user: unconfined_u
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh_authorized_keys:
+%{ for key in ssh_authorized_keys ~}
+      - ${key}
+%{ endfor ~}
+
+runcmd:
+  # Verify ${sudoer_username} was created with the right homedir. If it wasn't
+  # the user with the corresponding username is entirely removed, cloud-init is
+  # cleaned and the system is rebooted. This happens when configuring from images
+  # that were customized.
+  - test ! -d /${sudoer_username} && userdel -f -r ${sudoer_username} && cloud-init clean -r
+  - restorecon -R /${sudoer_username}
+  - sed -i '/HostKey \/etc\/ssh\/ssh_host_ecdsa_key/ s/^#*/#/' /etc/ssh/sshd_config
+  - chmod 644 /etc/ssh/ssh_host_*_key.pub
+  - chgrp ssh_keys /etc/ssh/ssh_host_*_key.pub
+  - systemctl restart sshd
+  # Enable fastest mirror for distribution using dnf package manager
+  - test -f /etc/dnf/dnf.conf && (grep -qxF "fastestmirror=True" /etc/dnf/dnf.conf || echo "fastestmirror=True" >> /etc/dnf/dnf.conf)
+  # Install package and configure kernel only if building from a "vanilla" linux image
+  - |
+    if ! test -f /etc/magic-castle-release; then
+      # Install required packages in runcmd instead of packages to speedup configuration
+      # of the admin user. This reduces the risk of Terraform timing out when trying to
+      # upload the terraform_data.yaml
+      yum -y install git pciutils unzip
+      yum remove -y firewalld --exclude=iptables
+      # Upgrade all packages except Puppet if already installed
+      yum -y upgrade -x puppet*
+      # Puppet agent configuration and install
+      yum -y install https://yum.puppet.com/puppet7-release-el-$(grep -oP 'VERSION_ID="\K[^"]' /etc/os-release).noarch.rpm
+      yum -y install puppet-agent-7.24.0
+      install -m 700 /dev/null /opt/puppetlabs/bin/postrun
+      # kernel configuration
+      systemctl disable kdump
+      sed -i 's/crashkernel=auto/crashkernel=no/' /etc/default/grub
+      sed -i 's/GRUB_CMDLINE_LINUX="[^"]*/& nouveau.modeset=0 rd.driver.blacklist=nouveau/' /etc/default/grub
+      grub2-mkconfig -o /boot/grub2/grub.cfg
+    fi
+%{ if contains(tags, "puppet") }
+  # Install Java 11 and puppetserver
+  - yum -y install java-11-openjdk-headless puppetserver-7.11.0
+# Configure puppetserver to use Java 11
+  - sudo sed -i 's;\(JAVA_BIN=\).*;\1"/usr/lib/jvm/jre-11/bin/java";g' /etc/sysconfig/puppetserver
+# Configure puppet-agent to start after puppetserver when on puppetserver
+  - sed -i 's/^\(After=.*\)$/\1 puppetserver.service/' /usr/lib/systemd/system/puppet.service
+  - systemctl daemon-reload
+  - systemctl enable puppetserver
+# Enable autosign with password
+  - chgrp puppet /etc/autosign.conf
+  - chown puppet:puppet /var/log/autosign.log
+  - /opt/puppetlabs/puppet/bin/gem install autosign
+  - /opt/puppetlabs/bin/puppet config set autosign /opt/puppetlabs/puppet/bin/autosign-validator --section server
+  - /opt/puppetlabs/bin/puppet config set allow_duplicate_certs true --section server
+# Generate hieradata asymmetric encryption key
+  - /opt/puppetlabs/puppet/bin/gem install hiera-eyaml
+  - mkdir -p /etc/puppetlabs/puppet/eyaml
+  - /opt/puppetlabs/puppet/bin/eyaml createkeys --pkcs7-private-key=/etc/puppetlabs/puppet/eyaml/private_key.pkcs7.pem --pkcs7-public-key=/etc/puppetlabs/puppet/eyaml/public_key.pkcs7.pem
+  - /opt/puppetlabs/puppet/bin/eyaml createkeys --pkcs7-private-key=/etc/puppetlabs/puppet/eyaml/boot_private_key.pkcs7.pem --pkcs7-public-key=/etc/puppetlabs/puppet/eyaml/boot_public_key.pkcs7.pem
+  - chown -R puppet:puppet /etc/puppetlabs/puppet/eyaml
+  - chmod 0400 /etc/puppetlabs/puppet/eyaml/private_key.pkcs7.pem
+  - chmod 0400 /etc/puppetlabs/puppet/eyaml/boot_private_key.pkcs7.pem
+# Setup puppet environment code and modules
+  - rm -rf /etc/puppetlabs/code/environments/production
+  - git clone ${puppetenv_git} /etc/puppetlabs/code/environments/production
+  - "(cd /etc/puppetlabs/code/environments/production; git checkout ${puppetenv_rev})"
+  - mkdir -p /etc/puppetlabs/data /etc/puppetlabs/facts
+  - chgrp puppet /etc/puppetlabs/data /etc/puppetlabs/facts
+  - ln -sf /etc/puppetlabs/data/terraform_data.yaml /etc/puppetlabs/code/environments/production/data/
+  - ln -sf /etc/puppetlabs/data/user_data.yaml /etc/puppetlabs/code/environments/production/data/
+  - ln -sf /etc/puppetlabs/facts/terraform_facts.yaml /etc/puppetlabs/code/environments/production/site/profile/facts.d
+  - /opt/puppetlabs/puppet/bin/gem install librarian-puppet
+  - "(cd /etc/puppetlabs/code/environments/production/ && HOME=/root PATH=$PATH:/opt/puppetlabs/puppet/bin /opt/puppetlabs/puppet/bin/librarian-puppet install)"
+# Bootstrap services that are essential to the puppet repo
+  - (cd /etc/puppetlabs/code/environments/production; test -e bootstrap.sh && ./bootstrap.sh)
+%{ if node_name != keys(puppetservers)[0] }
+  - sed -e '/certificate-authority-service/ s/^/#/' -i /etc/puppetlabs/puppetserver/services.d/ca.cfg
+  - sed -e '/certificate-authority-disabled-service/ s/^#//' -i /etc/puppetlabs/puppetserver/services.d/ca.cfg
+%{ endif }
+  - chgrp puppet /etc/puppetlabs/puppet/csr_attributes.yaml
+%{ endif }
+# Setup puppet server
+%{ for host, ip in puppetservers ~}
+  - echo "${ip} ${host}" >> /etc/hosts
+%{ endfor ~}
+%{ if length(puppetservers) > 0 ~}
+  - /opt/puppetlabs/bin/puppet config set server ${keys(puppetservers)[0]}
+%{ endif ~}
+  - /opt/puppetlabs/bin/puppet config set certname ${node_name}
+  - /opt/puppetlabs/bin/puppet config set waitforcert 15s
+  - /opt/puppetlabs/bin/puppet config set report false
+  - /opt/puppetlabs/bin/puppet config set postrun_command /opt/puppetlabs/bin/postrun
+  - systemctl enable puppet
+# Remove all ifcfg configuration files that have no corresponding network interface in ip link show.
+  - for i in /etc/sysconfig/network-scripts/ifcfg-*; do if ! ip link show | grep -q "$${i##*-}:"; then rm -f $i; fi; done
+# AWS EFA driver installation
+%{ if contains(tags, "efa") }
+  - curl -O https://efa-installer.amazonaws.com/aws-efa-installer-latest.tar.gz
+  - "(tar xf aws-efa-installer-latest.tar.gz && cd aws-efa-installer && ./efa_installer.sh --yes --minimal)"
+  - rm -fr aws-efa-installer aws-efa-installer-latest.tar.gz
+%{ endif }
+  # If the current image has already been configured with Magic Castle Puppet environment,
+  # we can start puppet and skip reboot, reducing the delay for bringing the node up.
+  - test -f /etc/magic-castle-release && systemctl start puppet
+
+write_files:
+  - content: |
+      facts : {
+        blocklist : [ "EC2", "GCE" ],
+      }
+    path: /etc/puppetlabs/facter/facter.conf
+    permissions: "0644"
+%{ if contains(tags, "puppet") ~}
+  - content: |
+      ---
+      general:
+        loglevel: warn
+        logfile: "/var/log/autosign.log"
+        validation_order:
+          - password_list
+      password_list:
+        password: "${puppetserver_password}"
+    path: /etc/autosign.conf
+    permissions: "0640"
+  - path: /var/log/autosign.log
+    permissions: "0640"
+%{ if include_tf_data ~}
+  - path: /etc/puppetlabs/data/terraform_data.yaml
+    content: |
+      ${indent(6, terraform_data)}
+    permissions: "0640"
+  - path: /etc/puppetlabs/facts/terraform_facts.yaml
+    content: |
+      ${indent(6, terraform_facts)}
+    permissions: "0640"
+%{ endif ~}
+%{ endif ~}
+  - content: |
+      ---
+      custom_attributes:
+        1.2.840.113549.1.9.7: "${puppetserver_password}"
+    path: /etc/puppetlabs/puppet/csr_attributes.yaml
+    permissions: "0640"
+    owner: root:root
+
+ssh_keys:
+%{ for key, values in hostkeys ~}
+  ${key}_public: |
+    ${indent(4, values["public"])}
+  ${key}_private: |
+    ${indent(4, values["private"])}
+%{ endfor ~}
+
+disable_ec2_metadata: false
+timezone: "UTC"
+fqdn: "${node_name}"
+manage_etc_hosts: false
+output: { all: "| tee -a /var/log/cloud-init-output.log" }
+power_state:
+  delay: now
+  mode: reboot
+  condition: test ! -f /etc/magic-castle-release

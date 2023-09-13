@@ -10,14 +10,14 @@ variable "pool" {
 module "openstack" {
   source         = "./openstack"
   config_git_url = "https://github.com/ComputeCanada/puppet-magic_castle.git"
-  config_version = "12.3.0"
+  config_version = "12.6.0"
 
-  cluster_name = "sprbas2023"
+  cluster_name = "basics"
   domain       = "ace-net.training"
   image        = "Rocky-8.7-x64-2023-02"
 
   instances = {
-    mgmt   = { type = "p4-6gb", tags = ["puppet", "mgmt", "nfs"], count = 1 }
+    mgmt   = { type = "p8-12gb", tags = ["puppet", "mgmt", "nfs"], count = 1 }
     login  = { type = "p2-3gb", tags = ["login", "public", "proxy"], count = 1 }
     node   = { type = "p2-3gb", tags = ["node"], count = 2 }
   }
@@ -36,7 +36,7 @@ module "openstack" {
     }
   }
 
-  public_keys = ["ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC3Ym8RnkOSzwS66QPxT1Ub00knXM5i0aMfFW7yZvoTm16aO9f6Z0wqbEp3+IwZTJ0lwDrtTZV8MZTuWNqximaXz8t4UTQ3aGBEQ0tW1JGSIgmQ9SilBwBdMQBVUQL3i3H32+L3uUnYtlOtZM+g0G0FwiHVX7ULV4d2z4RkjCDaHkO37rxOikRPbKhtQFLHAjURR3DzM9iV/cN1nFhL7iKjhdbMPjQ1AmC5VcA/y0YDFdB1yxCD8EID3+vzqymwe5DUy/lgn/bg0jECEtBPQS9neQVUhAieOQ5FAiSxB3T0bHwq9rtAmcwxwXJpABpIv91Lwz6bC/OtRiFBFKC21yxRyP0xWZlemi8quayYqzIcsdYBUPs2CGUO6aph7KTCYfNWBuEdIO2NmraqqF9RsiMfkXwczGnVfJTDQyOyLh+iYkl37zpb3PXGzwcYzo4bFwKxTrWaAlOv/VFNolm2ovier+xRJic3vnS/SGvfytwFmiqpV9Lnlbnebbi4GAQr4VXyiUPW7EYmWm/Zlvdj5Z+0xldRaJvcVLNB7p81N2QAMD3mSnj2YdM4QrI+C3u8+diftaCNKhFWuP70nx6cYCj7kP809lG+u1dbwXhx/DJh0FcA2LjNej2UmteOypU25QBtz31MgQR+Sru/rLXk5/rtdhivyn/EPEORkMHcTB5VdQ== castlemanager@castle-manager"]
+  public_keys = ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIENpmkSafTLSmnYQ+Ukzog9kqKe0M01/OBi6xdr8ww4K cgeroux@sol"]
 
   generate_ssh_key = true
   

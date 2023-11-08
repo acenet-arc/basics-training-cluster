@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.2.1"
+  required_version = ">= 1.4.0"
 }
 
 variable "pool" {
@@ -8,9 +8,9 @@ variable "pool" {
 }
 
 module "openstack" {
-  source         = "./openstack"
+  source         = "git::https://github.com/ComputeCanada/magic_castle.git//openstack?ref=13.1.0"
   config_git_url = "https://github.com/ComputeCanada/puppet-magic_castle.git"
-  config_version = "12.6.0"
+  config_version = "13.1.0"
 
   cluster_name = "basics"
   domain       = "ace-net.training"
@@ -38,8 +38,6 @@ module "openstack" {
 
   public_keys = ["ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIENpmkSafTLSmnYQ+Ukzog9kqKe0M01/OBi6xdr8ww4K cgeroux@sol"]
 
-  generate_ssh_key = true
-  
   nb_users = 100
   # Shared password, randomly chosen if blank
   guest_passwd = ""
@@ -53,12 +51,12 @@ output "public_ip" {
   value = module.openstack.public_ip
 }
 
-# Uncomment to register your domain name with CloudFlare
+## Uncomment to register your domain name with CloudFlare
 module "dns" {
-  source           = "./dns/cloudflare"
-  email            = "chris.geroux@ace-net.ca"
+  source           = "git::https://github.com/ComputeCanada/magic_castle.git//dns/cloudflare?ref=13.1.0"
   name             = module.openstack.cluster_name
   domain           = module.openstack.domain
+  bastions         = module.openstack.bastions
   public_instances = module.openstack.public_instances
   ssh_private_key  = module.openstack.ssh_private_key
   sudoer_username  = module.openstack.accounts.sudoer.username
@@ -66,12 +64,12 @@ module "dns" {
 
 ## Uncomment to register your domain name with Google Cloud
 # module "dns" {
-#   source           = "./dns/gcloud"
-#   email            = "you@example.com"
+#   source           = "git::https://github.com/ComputeCanada/magic_castle.git//dns/gcloud"
 #   project          = "your-project-id"
 #   zone_name        = "you-zone-name"
 #   name             = module.openstack.cluster_name
 #   domain           = module.openstack.domain
+#   bastions         = module.openstack.bastions
 #   public_instances = module.openstack.public_instances
 #   ssh_private_key  = module.openstack.ssh_private_key
 #   sudoer_username  = module.openstack.accounts.sudoer.username

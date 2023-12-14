@@ -14,7 +14,7 @@ module "openstack" {
 
   cluster_name = "basics"
   domain       = "ace-net.training"
-  image        = "Rocky-8.7-x64-2023-02"
+  image        = "Rocky-8.9-x64-2023-11"
 
   instances = {
     mgmt   = { type = "p8-12gb", tags = ["puppet", "mgmt", "nfs"], count = 1 }

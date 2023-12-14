@@ -77,6 +77,6 @@ output "public_ip" {
 #   sudoer_username  = module.openstack.accounts.sudoer.username
 # }
 
-output "hostnames" {
-  value = module.dns.hostnames
-}
+# output "hostnames" {
+#   value = module.dns.hostnames
+# }

@@ -14,7 +14,7 @@ module "openstack" {
 
   cluster_name = "basics"
   domain       = "ace-net.training"
-  image        = "Rocky-8.9-x64-2023-11"
+  image        = "Rocky-9.3-x64-2023-11"
 
   instances = {
     mgmt   = { type = "p8-12gb", tags = ["puppet", "mgmt", "nfs"], count = 1 }
@@ -53,16 +53,16 @@ output "public_ip" {
   value = module.openstack.public_ip
 }
 
-## Uncomment to register your domain name with CloudFlare
-# module "dns" {
-#   source           = "git::https://github.com/ComputeCanada/magic_castle.git//dns/cloudflare?ref=13.1.0"
-#   name             = module.openstack.cluster_name
-#   domain           = module.openstack.domain
-#   bastions         = module.openstack.bastions
-#   public_instances = module.openstack.public_instances
-#   ssh_private_key  = module.openstack.ssh_private_key
-#   sudoer_username  = module.openstack.accounts.sudoer.username
-# }
+# Uncomment to register your domain name with CloudFlare
+module "dns" {
+  source           = "git::https://github.com/ComputeCanada/magic_castle.git//dns/cloudflare?ref=13.1.0"
+  name             = module.openstack.cluster_name
+  domain           = module.openstack.domain
+  bastions         = module.openstack.bastions
+  public_instances = module.openstack.public_instances
+  ssh_private_key  = module.openstack.ssh_private_key
+  sudoer_username  = module.openstack.accounts.sudoer.username
+}
 
 ## Uncomment to register your domain name with Google Cloud
 # module "dns" {
@@ -77,6 +77,6 @@ output "public_ip" {
 #   sudoer_username  = module.openstack.accounts.sudoer.username
 # }
 
-# output "hostnames" {
-#   value = module.dns.hostnames
-# }
+output "hostnames" {
+  value = module.dns.hostnames
+}

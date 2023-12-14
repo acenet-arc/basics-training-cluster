@@ -54,15 +54,15 @@ output "public_ip" {
 }
 
 ## Uncomment to register your domain name with CloudFlare
-module "dns" {
-  source           = "git::https://github.com/ComputeCanada/magic_castle.git//dns/cloudflare?ref=13.1.0"
-  name             = module.openstack.cluster_name
-  domain           = module.openstack.domain
-  bastions         = module.openstack.bastions
-  public_instances = module.openstack.public_instances
-  ssh_private_key  = module.openstack.ssh_private_key
-  sudoer_username  = module.openstack.accounts.sudoer.username
-}
+# module "dns" {
+#   source           = "git::https://github.com/ComputeCanada/magic_castle.git//dns/cloudflare?ref=13.1.0"
+#   name             = module.openstack.cluster_name
+#   domain           = module.openstack.domain
+#   bastions         = module.openstack.bastions
+#   public_instances = module.openstack.public_instances
+#   ssh_private_key  = module.openstack.ssh_private_key
+#   sudoer_username  = module.openstack.accounts.sudoer.username
+# }
 
 ## Uncomment to register your domain name with Google Cloud
 # module "dns" {

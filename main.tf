@@ -8,9 +8,9 @@ variable "pool" {
 }
 
 module "openstack" {
-  source         = "git::https://github.com/ComputeCanada/magic_castle.git//openstack?ref=13.1.0"
+  source         = "git::https://github.com/ComputeCanada/magic_castle.git//openstack"
   config_git_url = "https://github.com/ComputeCanada/puppet-magic_castle.git"
-  config_version = "13.1.0"
+  config_version = "main"
 
   cluster_name = "basics"
   domain       = "ace-net.training"
@@ -55,7 +55,7 @@ output "public_ip" {
 
 # Uncomment to register your domain name with CloudFlare
 module "dns" {
-  source           = "git::https://github.com/ComputeCanada/magic_castle.git//dns/cloudflare?ref=13.1.0"
+  source           = "git::https://github.com/ComputeCanada/magic_castle.git//dns/cloudflare"
   name             = module.openstack.cluster_name
   domain           = module.openstack.domain
   bastions         = module.openstack.bastions

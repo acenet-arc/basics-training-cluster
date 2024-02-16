@@ -10,7 +10,7 @@ variable "pool" {
 module "openstack" {
   source         = "git::https://github.com/ComputeCanada/magic_castle.git//openstack"
   config_git_url = "https://github.com/ComputeCanada/puppet-magic_castle.git"
-  config_version = "main"
+  config_version = "13.3.1"
 
   cluster_name = "basics"
   domain       = "ace-net.training"

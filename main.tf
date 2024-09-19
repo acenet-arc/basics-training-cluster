@@ -8,17 +8,17 @@ variable "pool" {
 }
 
 module "openstack" {
-  source         = "git::https://github.com/ComputeCanada/magic_castle.git//openstack?ref=13.5.0"
+  source         = "git::https://github.com/ComputeCanada/magic_castle.git//openstack?ref=14.0.0-beta"
   config_git_url = "https://github.com/ComputeCanada/puppet-magic_castle.git"
-  config_version = "13.5.0"
+  config_version = "14.0.0-beta"
 
   cluster_name = "basics"
   domain       = "ace-net.training"
   image        = "Rocky-9.3-x64-2023-11"
 
   instances = {
-    mgmt   = { type = "p8-12gb", tags = ["puppet", "mgmt", "nfs"], count = 1 }
-    login  = { type = "p8-12gb", tags = ["login", "public", "proxy"], count = 1 }
+    mgmt   = { type = "p4-7.5gb", tags = ["puppet", "mgmt", "nfs"], count = 1 }
+    login  = { type = "p4-7.5gb", tags = ["login", "public", "proxy"], count = 1 }
     node   = { type = "p2-3gb", tags = ["node"], count = 2 }
   }
 
@@ -53,15 +53,12 @@ output "public_ip" {
   value = module.openstack.public_ip
 }
 
-# Uncomment to register your domain name with CloudFlare
+## Uncomment to register your domain name with CloudFlare
 module "dns" {
   source           = "git::https://github.com/ComputeCanada/magic_castle.git//dns/cloudflare"
   name             = module.openstack.cluster_name
   domain           = module.openstack.domain
-  bastions         = module.openstack.bastions
   public_instances = module.openstack.public_instances
-  ssh_private_key  = module.openstack.ssh_private_key
-  sudoer_username  = module.openstack.accounts.sudoer.username
 }
 
 ## Uncomment to register your domain name with Google Cloud
@@ -71,10 +68,7 @@ module "dns" {
 #   zone_name        = "you-zone-name"
 #   name             = module.openstack.cluster_name
 #   domain           = module.openstack.domain
-#   bastions         = module.openstack.bastions
 #   public_instances = module.openstack.public_instances
-#   ssh_private_key  = module.openstack.ssh_private_key
-#   sudoer_username  = module.openstack.accounts.sudoer.username
 # }
 
 output "hostnames" {
